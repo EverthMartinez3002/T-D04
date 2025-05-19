@@ -1,0 +1,120 @@
+# .github/workflows/ci.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - develop
+      - 'release/**'
+      - main
+    tags:
+      - 'v*.*.*'
+
+env:
+  # Defina aquí la URL de su registry, p.ej. docker.io/miusuario
+  REGISTRY: ${{ secrets.REGISTRY_URL }}
+
+jobs:
+  # 1. Lint de commits con Conventional Commits
+  lint-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Lint Conventional Commits
+        uses: wagoid/commitlint-github-action@v4
+        with:
+          configFile: commitlint.config.js
+
+  # 2. Build y Test para Node y PHP
+  build-and-test:
+    needs: lint-commits
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [conversion-node, conversion-php]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Log in to Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Build ${{ matrix.service }}
+        run: |
+          docker build \
+            --file ./conversion-service/${{ matrix.service }}/Dockerfile \
+            --tag ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }} \
+            conversion-service/${{ matrix.service }}
+      - name: Test ${{ matrix.service }}
+        run: |
+          if [ "${{ matrix.service }}" = "conversion-node" ]; then
+            docker run --rm ${{ env.REGISTRY }}/conversion-node:${{ github.sha }} npm test;
+          else
+            docker run --rm ${{ env.REGISTRY }}/conversion-php:${{ github.sha }} vendor/bin/phpunit --configuration phpunit.xml;
+          fi
+
+  # 3. Escaneo de seguridad y SBOM
+  security-scan:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [conversion-node, conversion-php]
+    steps:
+      - name: Scan ${{ matrix.service }} with Trivy
+        uses: aquasecurity/trivy-action@v0.9.4
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
+          format: 'table'
+          exit-code: '1'      # falla si encuentra vulnerabilidades altas
+          vuln-type: 'os,library'
+      - name: Generate SBOM for ${{ matrix.service }}
+        uses: anchore/sbom-action@v1
+        with:
+          image: ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
+          output-format: 'spdx-json'
+          output-path: sbom-${{ matrix.service }}.json
+
+  # 4. Push de imágenes en releases o tags semánticos
+  push-images:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Log in to Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Push images
+        run: |
+          for service in conversion-node conversion-php; do
+            # Push con SHA
+            docker push ${{ env.REGISTRY }}/${service}:${{ github.sha }};
+            # Tag semántico y push
+            docker tag ${{ env.REGISTRY }}/${service}:${{ github.sha }} ${{ env.REGISTRY }}/${service}:${{ github.ref_name }};
+            docker push ${{ env.REGISTRY }}/${service}:${{ github.ref_name }};
+          done
+
+  # 5. Deploy con docker-compose en main
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: push-images
+    runs-on: self-hosted     
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy stack
+        run: |
+          cd path/al/proyecto
+          docker-compose pull
+          docker-compose up -d

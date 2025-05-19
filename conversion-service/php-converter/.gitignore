@@ -1,0 +1,27 @@
+# Dependencias de Composer
+/vendor/
+/composer.lock
+
+# Archivos de entorno
+.env
+.env.local
+
+# Cachés y resultados de pruebas
+.phpunit.result.cache
+phpunit.xml.cache
+
+# Archivos de logs y temporales
+logs/
+tmp/
+
+# Cachés de frameworks (si llegase a usar alguno)
+/cache/
+/storage/
+
+# Cachés de OPCache en desarrollo (si se genera algún archivo)
+/opcache/
+
+# Cachés de IDEs y SO
+.vscode/
+.idea/
+.DS_Store

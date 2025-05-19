@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  conversion-node:
+    build:
+      context: ./conversion-service/node-converter
+    container_name: conversion-node
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./conversion-service/node-converter:/usr/src/app:delegated
+      - node_modules:/usr/src/app/node_modules
+    command: npm run dev
+    networks:
+      - conversion-net
+
+  conversion-php:
+    build:
+      context: ./conversion-service/php-converter
+    container_name: conversion-php
+    ports:
+      - "4001:9000"
+    volumes:
+      - ./conversion-service/php-converter/src:/var/www/html/src:delegated
+      - ./conversion-service/php-converter/composer.json:/var/www/html/composer.json:delegated
+      - ./conversion-service/php-converter/composer.lock:/var/www/html/composer.lock:delegated
+    working_dir: /var/www/html
+    command: php -S 0.0.0.0:9000 -t src src/index.php
+    environment:
+      PHP_OPCACHE_ENABLE: "0"
+      PHP_OPCACHE_VALIDATE_TIMESTAMPS: "1"
+      PHP_OPCACHE_REVALIDATE_FREQ: "0"
+    networks:
+      - conversion-net
+
+
+volumes:
+  node_modules:
+  php_vendor:
+
+networks:
+  conversion-net:
+    driver: bridge

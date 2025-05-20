@@ -1,0 +1,171 @@
+T-D04 - Pipeline DevOps
+
+Dos microservicios "conversion-service" (Node 18 / PHP-FPM 8.2) con Git Flow, Conventional Commits, CI/CD en GitHub Actions, publicación en Docker Hub y despliegue por Docker Compose.
+
+📂 Estructura del proyecto
+
+conversion-service/
+├── node-converter/
+│   ├── src/
+│   │   └── app.js
+│   │   └── index.js
+│   ├── uploads/           # ficheros subidos
+│   ├── package.json
+│   ├── package-lock.json
+│   └── Dockerfile
+│   └── __tests__/
+│       └── app.test.js    # Jest + Supertest
+│
+├── php-converter/
+│   ├── src/
+│   │   ├── app.php
+│   │   └── index.php
+│   ├── converted/         # ficheros convertidos
+│   ├── tests/
+│   │   └── ConvertTest.php
+│   ├── composer.json
+│   ├── composer.lock
+│   ├── phpunit.xml
+│   └── Dockerfile
+│
+└── docker-compose.yml
+
+⚙️ Prerrequisitos
+
+Docker & Docker Compose
+
+Node 18
+
+PHP 8.2 & Composer
+
+Git
+
+(Opcional) act para probar GitHub Actions en local
+
+🚀 Desarrollo local
+
+Copiar .env.example a .env y ajustar variables si es necesario.
+
+Levantar ambos servicios:
+
+docker-compose up --build -d
+
+Verificar contenedores:
+
+docker-compose ps
+
+🔧 Endpoints
+
+Node-converter (puerto 4000)
+
+GET /health
+
+{ "status": "ok", "timestamp": "2025-05-20T..." }
+
+POST /convert (multipart/form-data)
+
+Campos:
+
+archivo (fichero real)
+
+formato (ej. pdf, txt)
+
+Respuesta HTTP 202:
+
+{ "status": "pendiente", "id": "uuid-tarea" }
+
+GET /convert/:idEstado de la tarea (pendiente/completado + resultUrl).
+
+PHP-converter (puerto 4001)
+
+GET /health
+
+{ "status": "ok", "timestamp": "2025-05-20T..." }
+
+POST /convert (JSON)
+
+{
+  "id": "uuid-tarea",
+  "input": {
+    "filePath": "/uploads/tmp1234",
+    "originalName": "doc.docx",
+    "formato": "pdf"
+  }
+}
+
+Respuesta HTTP 200:
+
+{
+  "status": "completado",
+  "id": "uuid-tarea",
+  "resultUrl": "/converted/uuid-tarea.pdf"
+}
+
+GET /converted/{file}Descarga el fichero convertido.
+
+🧪 Tests
+
+Node
+
+cd conversion-service/node-converter
+npm install
+npm test
+
+PHP
+
+cd conversion-service/php-converter
+composer install
+composer test
+
+📋 GitHub Actions
+
+Badges (añade al README):
+
+![CI](https://github.com/tu-orga/tu-repo/actions/workflows/ci.yml/badge.svg)
+
+Lint commits: Conventional Commits
+
+Build & Test & Scan: Docker Buildx + Jest/PHPUnit + Trivy + SBOM
+
+Push: sobre tags vX.Y.Z
+
+Deploy: en main, con docker-compose pull && up -d
+
+🚢 Publicación y despliegue
+
+Crear tag semántico y push:
+
+git tag v1.0.0
+git push origin v1.0.0
+
+GitHub Actions:
+
+build-test-scan → seguridad → push imágenes a Docker Hub
+
+deploy (en main) en tu runner self-hosted:
+
+cd /ruta/al/proyecto
+docker-compose pull
+docker-compose up -d
+
+🔒 Seguridad
+
+Secrets en GitHub: REGISTRY_URL, REGISTRY_USERNAME, REGISTRY_PASSWORD
+
+SBOM generado (spdx-json)
+
+Trivy muestra vulnerabilidades (exit-code 0, solo informa)
+
+📖 Más información
+
+Conventional Commits
+
+GitHub Actions
+
+Docker Compose
+
+Trivy
+
+Anchore SBOM Action
+
+Nota: Ajusta rutas y valores según tu entorno.

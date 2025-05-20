@@ -25,6 +25,8 @@ jobs:
         uses: wagoid/commitlint-github-action@v4
         with:
           configFile: commitlint.config.js
+          firstParent: false
+          failOnWarning: false
 
   build-test-scan:
     needs: lint-commits

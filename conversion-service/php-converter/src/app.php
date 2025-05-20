@@ -12,14 +12,12 @@ use Slim\Factory\AppFactory;
 AppFactory::setResponseFactory(new Psr17Factory());
 $app = AppFactory::create();
 
-// Health check
 $app->get('/health', function (Request $req, Response $res) {
     $payload = ['status' => 'ok', 'timestamp' => date('c')];
     $res->getBody()->write(json_encode($payload));
     return $res->withHeader('Content-Type', 'application/json');
 });
 
-// Serve converted files
 $app->get('/converted/{file}', function (Request $req, Response $res, array $args) {
     $file = basename($args['file']);
     $path = __DIR__ . '/../converted/' . $file;
@@ -32,9 +30,7 @@ $app->get('/converted/{file}', function (Request $req, Response $res, array $arg
         ->withHeader('Content-Type', 'application/octet-stream');
 });
 
-// Convert endpoint (in-memory simulation)
 $app->post('/convert', function (Request $req, Response $res) {
-    // Usamos getParsedBody para los tests PSR-7 en memoria
     $body = $req->getParsedBody() ?? [];
 
     if (
@@ -52,7 +48,6 @@ $app->post('/convert', function (Request $req, Response $res) {
     $id       = $body['id'];
     $formato  = $body['input']['formato'];
 
-    // Simular procesamiento en memoria
     $resultUrl = "/converted/{$id}.{$formato}";
 
     $payload = [

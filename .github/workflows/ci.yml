@@ -105,7 +105,6 @@ jobs:
             docker push ${{ env.REGISTRY }}/${service}:${{ github.ref_name }};
           done
 
-  # 5. Deploy con docker-compose en main
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: push-images

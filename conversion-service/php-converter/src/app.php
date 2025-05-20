@@ -34,7 +34,9 @@ $app->get('/converted/{file}', function (Request $req, Response $res, array $arg
 
 // Convert endpoint (in-memory simulation)
 $app->post('/convert', function (Request $req, Response $res) {
-    $body = json_decode((string)$req->getBody(), true);
+    // Usamos getParsedBody para los tests PSR-7 en memoria
+    $body = $req->getParsedBody() ?? [];
+
     if (
         !isset($body['id']) ||
         !isset($body['input']['filePath']) ||
@@ -50,8 +52,7 @@ $app->post('/convert', function (Request $req, Response $res) {
     $id       = $body['id'];
     $formato  = $body['input']['formato'];
 
-    // Simular procesamiento
-    // (en producción usaría copy(), LibreOffice, Imagick, etc.)
+    // Simular procesamiento en memoria
     $resultUrl = "/converted/{$id}.{$formato}";
 
     $payload = [

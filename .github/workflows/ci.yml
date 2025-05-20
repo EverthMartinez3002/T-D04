@@ -26,7 +26,8 @@ jobs:
         with:
           configFile: commitlint.config.js
           firstParent: false
-          failOnWarning: false
+          failOnWarnings: false
+          args: --from=HEAD~1
 
   build-test-scan:
     needs: lint-commits

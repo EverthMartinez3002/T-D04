@@ -28,6 +28,7 @@ jobs:
           firstParent: false
           failOnWarnings: false
           args: --from=HEAD~1
+          fetch-depth: 0
 
   build-test-scan:
     needs: lint-commits

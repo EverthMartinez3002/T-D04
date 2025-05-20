@@ -1,54 +1,63 @@
 <?php
-use PHPUnit\Framework\TestCase;
-use GuzzleHttp\Client;
+declare(strict_types=1);
 
-class ConvertTest extends TestCase
+use PHPUnit\Framework\TestCase;
+use Nyholm\Psr7\ServerRequest;
+use Nyholm\Psr7\UploadedFile;
+use Nyholm\Psr7\Factory\Psr17Factory;
+
+final class ConvertTest extends TestCase
 {
-    private Client $client;
+    private \Slim\App $app;
+    private Psr17Factory $psr17;
 
     protected function setUp(): void
     {
-        $this->client = new Client([
-            'base_uri' => 'http://localhost:4001',
-            'http_errors' => false,   // para no lanzar excepciones en 4xx/5xx
-        ]);
+        $this->app   = require __DIR__ . '/../src/app.php';
+        $this->psr17 = new Psr17Factory();
     }
 
-    public function testHealthEndpoint()
+    public function testHealthEndpoint(): void
     {
-        $res  = $this->client->get('/health');
-        $this->assertEquals(200, $res->getStatusCode());
-        $body = json_decode($res->getBody(), true);
-        $this->assertArrayHasKey('status', $body);
-        $this->assertEquals('ok', $body['status']);
+        $req      = new ServerRequest('GET', '/health');
+        $response = $this->app->handle($req);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame('ok', $body['status']);
+        $this->assertArrayHasKey('timestamp', $body);
     }
 
-    public function testConvertWithoutBody()
+    public function testConvertWithoutBody(): void
     {
-        $res  = $this->client->post('/convert', ['json' => []]);
-        $this->assertEquals(400, $res->getStatusCode());
-        $body = json_decode($res->getBody(), true);
+        $req      = (new ServerRequest('POST', '/convert'))
+            ->withParsedBody([]); 
+        $response = $this->app->handle($req);
+
+        $this->assertEquals(400, $response->getStatusCode());
+        $body = json_decode((string)$response->getBody(), true);
         $this->assertArrayHasKey('error', $body);
     }
 
-    public function testConvertWithFakeInstruction()
+    public function testConvertWithFakeInstruction(): void
     {
-        $id      = 'fake-id-123';
-        $payload = [
-            'id'   => $id,
-            'input'=> [
-                'filePath'     => '/var/www/html/uploads/fake.txt',
-                'originalName' => 'fake.txt',
-                'formato'      => 'txt'
-            ]
-        ];
+        $id = 'fake-1234';
+        $req = (new ServerRequest('POST', '/convert'))
+            ->withParsedBody([
+                'id'    => $id,
+                'input' => [
+                    'filePath'     => '/uploads/fake.txt',
+                    'originalName' => 'fake.txt',
+                    'formato'      => 'txt'
+                ]
+            ]);
 
-        $res = $this->client->post('/convert', ['json' => $payload]);
-        $this->assertEquals(200, $res->getStatusCode(), 'El endpoint debe devolver 200 OK');
-        
-        $body = json_decode($res->getBody(), true);
-        $this->assertEquals('completado', $body['status']);
-        $this->assertEquals($id, $body['id']);
+        $response = $this->app->handle($req);
+        $this->assertEquals(200, $response->getStatusCode());
+
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame('completado', $body['status']);
+        $this->assertSame($id, $body['id']);
         $this->assertStringContainsString("/converted/{$id}.txt", $body['resultUrl']);
     }
 }

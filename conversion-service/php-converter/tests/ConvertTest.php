@@ -1,32 +1,67 @@
 <?php
 use PHPUnit\Framework\TestCase;
-use GuzzleHttp\Client;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use Nyholm\Psr7\ServerRequest;
+use Nyholm\Psr7\UploadedFile;
 
 class ConvertTest extends TestCase
 {
-    private $client;
+    private $app;
+    private $psr17;
 
     protected function setUp(): void
     {
-        $this->client = new Client([
-            'base_uri' => 'http://localhost:4001'
-        ]);
+        // Cargar la app
+        $this->app   = require __DIR__ . '/../src/app.php';
+        $this->psr17 = new Psr17Factory();
     }
 
     public function testHealthEndpoint()
     {
-        $res = $this->client->get('/health');
-        $this->assertEquals(200, $res->getStatusCode());
-        $body = json_decode($res->getBody(), true);
-        $this->assertArrayHasKey('status', $body);
-        $this->assertEquals('ok', $body['status']);
+        $request  = new ServerRequest('GET', '/health');
+        $response = $this->app->handle($request);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame('ok', $body['status']);
     }
 
-    public function testConvertWithoutBody()
+    public function testConvertWithoutFile()
     {
-        $res = $this->client->post('/convert', ['json' => []]);
-        $this->assertEquals(400, $res->getStatusCode());
-        $body = json_decode($res->getBody(), true);
+        // Petición multipart vacía
+        $request = (new ServerRequest('POST', '/convert'))
+            ->withParsedBody(['formato'=>'pdf']);
+
+        $response = $this->app->handle($request);
+        $this->assertEquals(400, $response->getStatusCode());
+        $body = json_decode((string)$response->getBody(), true);
         $this->assertArrayHasKey('error', $body);
+    }
+
+    public function testConvertWithFakeFile()
+    {
+        // Preparo un fichero en /tmp para simular upload
+        $tmp = tempnam(sys_get_temp_dir(),'phpconv');
+        file_put_contents($tmp, 'contenido');
+
+        $uploaded = new UploadedFile(
+            $tmp,
+            filesize($tmp),
+            UPLOAD_ERR_OK,
+            'doc.txt',
+            'text/plain'
+        );
+
+        // Construyo la petición multipart
+        $request = (new ServerRequest('POST', '/convert'))
+            ->withUploadedFiles(['archivo'=>$uploaded])
+            ->withParsedBody(['formato'=>'txt']);
+
+        $response = $this->app->handle($request);
+        $this->assertEquals(202, $response->getStatusCode());
+
+        $body = json_decode((string)$response->getBody(), true);
+        $this->assertSame('pendiente', $body['status']);
+        $this->assertArrayHasKey('id', $body);
     }
 }

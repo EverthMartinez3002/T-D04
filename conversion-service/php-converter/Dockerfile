@@ -3,7 +3,6 @@ FROM composer:2 AS builder
 WORKDIR /app
 
 COPY composer.json composer.lock ./
-
 RUN composer install --optimize-autoloader --no-interaction
 
 COPY . .
@@ -26,8 +25,8 @@ COPY --from=builder /app /var/www/html
 
 RUN chown -R appuser:appgroup /var/www/html
 
-USER appuser
-
 EXPOSE 9000
+
+USER appuser
 
 CMD ["php-fpm"]

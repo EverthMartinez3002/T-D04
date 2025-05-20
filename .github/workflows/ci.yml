@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI/CD Pipeline
 
 on:
@@ -13,10 +12,11 @@ on:
       - 'v*.*.*'
 
 env:
-  REGISTRY: ${{ secrets.REGISTRY_URL }}
+  REGISTRY_URL: ${{ secrets.REGISTRY_URL }}
+  REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+  IMAGE_NAMESPACE: ${{ secrets.REGISTRY_URL }}/${{ secrets.REGISTRY_USERNAME }}
 
 jobs:
-  # 1. Lint de commits con Conventional Commits
   lint-commits:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +26,6 @@ jobs:
         with:
           configFile: commitlint.config.js
 
-  # 2. Build y Test para Node y PHP
   build-and-test:
     needs: lint-commits
     runs-on: ubuntu-latest
@@ -45,27 +44,27 @@ jobs:
       - name: Log in to Registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.REGISTRY_URL }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build ${{ matrix.service }}
         run: |
+          IMAGE=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
           docker build \
             --file ./conversion-service/${{ matrix.service }}/Dockerfile \
-            --tag ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }} \
+            --tag $IMAGE \
             ./conversion-service/${{ matrix.service }}
 
       - name: Test ${{ matrix.service }}
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
+          IMAGE=${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
           if [ "${{ matrix.service }}" = "node-converter" ]; then
             docker run --rm $IMAGE npm test
           else
             docker run --rm $IMAGE vendor/bin/phpunit --configuration phpunit.xml
           fi
 
-  # 3. Escaneo de seguridad y SBOM
   security-scan:
     needs: build-and-test
     runs-on: ubuntu-latest
@@ -76,7 +75,7 @@ jobs:
       - name: Scan ${{ matrix.service }} with Trivy
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
+          image-ref: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
           format: 'table'
           exit-code: '1'
           vuln-type: 'os,library'
@@ -84,11 +83,10 @@ jobs:
       - name: Generate SBOM for ${{ matrix.service }}
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}
+          image: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.service }}:${{ github.sha }}
           output-format: 'spdx-json'
           output-path: sbom-${{ matrix.service }}.json
 
-  # 4. Push de imágenes en tags semánticos
   push-images:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: security-scan
@@ -102,19 +100,21 @@ jobs:
       - name: Log in to Registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.REGISTRY_URL }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Push images
         run: |
           for svc in node-converter php-converter; do
-            docker push ${{ env.REGISTRY }}/${svc}:${{ github.sha }}
-            docker tag ${{ env.REGISTRY }}/${svc}:${{ github.sha }} ${{ env.REGISTRY }}/${svc}:${{ github.ref_name }}
-            docker push ${{ env.REGISTRY }}/${svc}:${{ github.ref_name }}
+            IMAGE=${{ env.IMAGE_NAMESPACE }}/${svc}:${{ github.sha }}
+            # Push con SHA
+            docker push $IMAGE
+            # Tag semántico y push
+            docker tag $IMAGE ${{ env.IMAGE_NAMESPACE }}/${svc}:${{ github.ref_name }}
+            docker push ${{ env.IMAGE_NAMESPACE }}/${svc}:${{ github.ref_name }}
           done
 
-  # 5. Deploy con docker-compose en main
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: push-images

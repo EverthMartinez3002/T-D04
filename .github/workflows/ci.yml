@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [conversion-node, conversion-php]
+        service: [node-converter, php-converter]
     steps:
       - uses: actions/checkout@v3
       - name: Set up QEMU
@@ -49,7 +49,7 @@ jobs:
           docker build \
             --file ./conversion-service/${{ matrix.service }}/Dockerfile \
             --tag ${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }} \
-            conversion-service/${{ matrix.service }}
+            ./conversion-service/${{ matrix.service }}
       - name: Test ${{ matrix.service }}
         run: |
           if [ "${{ matrix.service }}" = "conversion-node" ]; then
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [conversion-node, conversion-php]
+        service: [node-converter, php-converter]
     steps:
       - name: Scan ${{ matrix.service }} with Trivy
         uses: aquasecurity/trivy-action@v0.9.4

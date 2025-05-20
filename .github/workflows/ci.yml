@@ -21,6 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Lint Conventional Commits
         uses: wagoid/commitlint-github-action@v4
         with:
@@ -28,7 +30,6 @@ jobs:
           firstParent: false
           failOnWarnings: false
           args: --from=HEAD~1
-          fetch-depth: 0
 
   build-test-scan:
     needs: lint-commits

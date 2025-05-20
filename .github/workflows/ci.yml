@@ -52,10 +52,11 @@ jobs:
             ./conversion-service/${{ matrix.service }}
       - name: Test ${{ matrix.service }}
         run: |
-          if [ "${{ matrix.service }}" = "conversion-node" ]; then
-            docker run --rm ${{ env.REGISTRY }}/conversion-node:${{ github.sha }} npm test;
+          IMAGE="${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}"
+          if [ "${{ matrix.service }}" = "node-converter" ]; then
+            docker run --rm $IMAGE npm test
           else
-            docker run --rm ${{ env.REGISTRY }}/conversion-php:${{ github.sha }} vendor/bin/phpunit --configuration phpunit.xml;
+            docker run --rm $IMAGE vendor/bin/phpunit --configuration phpunit.xml
           fi
 
   # 3. Escaneo de seguridad y SBOM

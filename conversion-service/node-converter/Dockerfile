@@ -7,19 +7,20 @@ RUN npm ci
 
 COPY . .
 
-FROM node:18-slim
+FROM node:18-slim AS runtime
 
 RUN useradd --user-group --create-home --shell /bin/bash appuser
 
 WORKDIR /usr/src/app
 
-COPY package*.json ./
-RUN npm ci --omit=dev
-
 COPY --from=builder /usr/src/app ./
+
+RUN mkdir -p uploads \
+    && chown -R appuser:appuser /usr/src/app/uploads \
+    && chown -R appuser:appuser /usr/src/app
 
 USER appuser
 
 EXPOSE 3000
 
-CMD ["npx", "nodemon", "--watch", "src", "--exec", "node src/index.js"]
+CMD ["npm", "run", "dev"]

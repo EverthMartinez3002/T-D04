@@ -11,7 +11,9 @@ services:
       NODE_ENV: development
     volumes:
       - ./conversion-service/node-converter:/usr/src/app:delegated
-      - node_modules:/usr/src/app/node_modules
+      - ./conversion-service/node-converter/package.json:/usr/src/app/package.json:delegated
+      - ./conversion-service/node-converter/package-lock.json:/usr/src/app/package-lock.json:delegated
+      - ./conversion-service/node-converter/uploads:/usr/src/app/uploads
     command: npm run dev
     networks:
       - conversion-net
@@ -26,6 +28,8 @@ services:
       - ./conversion-service/php-converter/src:/var/www/html/src:delegated
       - ./conversion-service/php-converter/composer.json:/var/www/html/composer.json:delegated
       - ./conversion-service/php-converter/composer.lock:/var/www/html/composer.lock:delegated
+      - ./conversion-service/php-converter/converted:/var/www/html/converted
+      - ./conversion-service/node-converter/uploads:/var/www/html/uploads
     working_dir: /var/www/html
     command: php -S 0.0.0.0:9000 -t src src/index.php
     environment:
